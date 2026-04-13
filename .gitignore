@@ -75,6 +75,8 @@ gfpgan
 # Ignore pointops build artifacts
 lib/pointops/build/
 lib/pointops/dist/
+lib/pointops/pointops.egg-info/
+lib/pointops/*.egg-info/
 
 # Ignore additional third-party libs
 lib/diff-gaussian-rasterization/
