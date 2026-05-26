@@ -183,7 +183,7 @@ After downloading weights and data, the project structure:
 │   ├── example_aigc_images
 │   ├── example_multi_images
 │   ├── example_videos
-│   └── metrics_table.md
+│   └── dynamic_metrics_table.md
 ├── benchmark
 ├── configs
 │   └── train
@@ -334,9 +334,11 @@ Useful flags: `--images_dir`, `--ref_view`, `--device`, `--work_dir`. Shape-from
 
 ### Dynamic benchmark evaluation
 
+When comparing against our method, if you do **not rigorously align outputs with the validation set on motion**, reported metrics will be **substantially lower**. For a **fair comparison**, we release our **processed validation splits** so you can **directly reproduce our numbers**.
+
 **Data:** scenes under `evaluation/dynamic_benchmark/` (**NeuMan**, **SelfCapture**, **Vid2Avatar**), with timelines in `benchmark/manifests/eval_lhmpp_*.json`. Each scene has masked timeline frames plus **16** reference PNGs in `ref_imgs_png/`; evaluation uses **8** uniformly sampled reference views.
 
-**Reported numbers:** [assets/metrics_table.md](./assets/metrics_table.md)
+**Reported numbers:** [assets/dynamic_metrics_table.md](./assets/dynamic_metrics_table.md)
 
 Run masked animation inference with [`infer_eval_animation.py`](./scripts/inference/dynamic/infer_eval_animation.py). Choose the benchmark via **`--dataset`**; choose the render branch by omitting or adding **`--gs-output`** (Neural vs GS export folders).
 

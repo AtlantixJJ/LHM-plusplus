@@ -65,7 +65,6 @@ gfpgan/
 thirdparty/
 train_data/
 pretrained_models/
-benchmark/
 motion_video/
 outputs/
 

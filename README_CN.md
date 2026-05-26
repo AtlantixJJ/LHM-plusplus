@@ -184,7 +184,7 @@ python scripts/download_motion_video.py --save-dir .
 │   ├── example_aigc_images
 │   ├── example_multi_images
 │   ├── example_videos
-│   └── metrics_table.md
+│   └── dynamic_metrics_table.md
 ├── benchmark
 ├── configs
 │   └── train
@@ -336,9 +336,11 @@ python scripts/inference/to_gs_ply.py \
 
 ### 动态 Benchmark 评测（Evaluation）
 
+在与我们方法对比时，若**未在 motion 上与验证集严格配对**，评测指标会**显著偏低**。为**公平比较**，我们提供了**自行处理的验证集**，便于**直接复现我们的结果**。
+
 **数据：** `evaluation/dynamic_benchmark/` 下的 **NeuMan**、**SelfCapture**、**Vid2Avatar** scene，timeline 见 `benchmark/manifests/eval_lhmpp_*.json`。每个 scene 含 timeline 帧与 **16** 张 `ref_imgs_png/` 参考图；评测时均匀采样 **8** 张参考视角。
 
-**论文/表格数字：** [assets/metrics_table.md](./assets/metrics_table.md)
+**论文/表格数字：** [assets/dynamic_metrics_table.md](./assets/dynamic_metrics_table.md)
 
 使用 [`infer_eval_animation.py`](./scripts/inference/dynamic/infer_eval_animation.py) 做 masked animation 推理。通过 **`--dataset`** 选择 benchmark；不加 **`--gs-output`** 为 **Neural** 导出，加上则为 **GS** 导出。
 
