@@ -338,6 +338,12 @@ When comparing against our method, if you do **not rigorously align outputs with
 
 **Data:** scenes under `evaluation/dynamic_benchmark/` (**NeuMan**, **SelfCapture**, **Vid2Avatar**), with timelines in `benchmark/manifests/eval_lhmpp_*.json`. Each scene has masked timeline frames plus **16** reference PNGs in `ref_imgs_png/`; evaluation uses **8** uniformly sampled reference views.
 
+Download from ModelScope [`Damo_XR_Lab/LHMPP-Evaluation-Benchmark`](https://modelscope.cn/models/Damo_XR_Lab/LHMPP-Evaluation-Benchmark):
+
+```bash
+python scripts/download_evaluation/download_dynamic_benchmarks.py
+```
+
 **Reported numbers:** [assets/dynamic_metrics_table.md](./assets/dynamic_metrics_table.md)
 
 Run masked animation inference with [`infer_eval_animation.py`](./scripts/inference/dynamic/infer_eval_animation.py). Choose the benchmark via **`--dataset`**; choose the render branch by omitting or adding **`--gs-output`** (Neural vs GS export folders).
