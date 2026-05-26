@@ -312,7 +312,7 @@ def demo_lhmpp(
 
         gr.HTML(
             """<p style="color: #c00; font-size: 0.9em; margin-bottom: 12px; font-weight: 500;">
-            ⚠️ Human images only. Motion video max 1000 frames. Default model LHMPP-700M-SMPLX-FREE requires ≥8 GB GPU. Videos may exhibit white occlusion artifacts due to cropping with the original mask, and some motion estimation may have slight jittering.
+            ⚠️ Human images only. Motion video max 1000 frames. Default model LHMPP-700M-PixelShuffle requires ≥8 GB GPU. Videos may exhibit white occlusion artifacts due to cropping with the original mask, and some motion estimation may have slight jittering.
             </p>"""
         )
 
@@ -535,11 +535,12 @@ def get_parse() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model_name",
-        default="LHMPP-700M-SMPLX-FREE",
+        default="LHMPP-700M-PixelShuffle",
         type=str,
         choices=[
-            "LHMPP-700M",
+            "LHMPP-700M-PixelShuffle",
             "LHMPP-700M-SMPLX-FREE",
+            "LHMPP-700M",
             "LHMPPS-700M",
         ],  # LHMPP-700MC coming soon
         help="Model name",
@@ -554,7 +555,7 @@ def get_parse() -> argparse.Namespace:
     render_mode.add_argument(
         "--gs",
         action="store_true",
-        help="Prefer gs_render at startup (only LHMPP-700M-SMPLX-FREE; others fall back to neural_render)",
+        help="Prefer gs_render at startup (LHMPP-700M-PixelShuffle / LHMPP-700M-SMPLX-FREE; others fall back to neural_render)",
     )
     return parser.parse_args()
 

@@ -15,9 +15,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from accelerate.logging import get_logger
-from diffusers.utils import is_torch_version
-from einops import rearrange
-
 from core.models.arcface_utils import ResNetArcFace
 from core.models.encoders.pointtransformer.point_transformer_warp import (
     PointTransformerEncoder,
@@ -28,14 +25,72 @@ from core.models.transformer_block.dpt_decoder import (
     PatchDPT4DecoderOnly,
     PatchDPTDecoderOnly,
     PatchEfficientDPTDecoder,
+    PatchMLPPixelShuffleDPT4DecoderOnly,
     PatchRopeEfficientDPTDecoder,
 )
 from core.models.utils import linear
 from core.models.vggt.heads.shape_head import ShapeHead
 from core.models.vggt_transformer import VGGTAggregator
 from core.modules.embed import PointEmbed
+from diffusers.utils import is_torch_version
+from einops import rearrange
 
 logger = get_logger(__name__)
+
+
+def _squeeze_to_hw_numpy(a: np.ndarray) -> np.ndarray:
+    x = np.asarray(a)
+    while x.ndim > 2:
+        if x.shape[0] == 1:
+            x = np.squeeze(x, axis=0)
+        elif x.shape[-1] == 1:
+            x = np.squeeze(x, axis=-1)
+        else:
+            x = x[0]
+            break
+    return x
+
+
+def _mask_any_to_hw_numpy(mask) -> np.ndarray:
+    if torch.is_tensor(mask):
+        m = mask.detach().cpu().numpy()
+    else:
+        m = mask
+    return _squeeze_to_hw_numpy(m)
+
+
+def _tensor_gray_to_hw_u8(gsm: torch.Tensor) -> np.ndarray:
+    x = gsm.detach().cpu().float().clamp(0, 1).numpy()
+    x = _squeeze_to_hw_numpy(x)
+    return (np.clip(x, 0, 1) * 255.0).clip(0, 255).astype(np.uint8)
+
+
+def _predict_mask_u8_hw(pm: torch.Tensor) -> np.ndarray:
+    x = pm.detach().cpu().float().numpy()
+    x = np.squeeze(x)
+    if x.ndim == 3:
+        x = x[..., 0]
+    if x.ndim != 2:
+        x = _squeeze_to_hw_numpy(x)
+    return (np.clip(x, 0, 1) * 255.0).clip(0, 255).astype(np.uint8)
+
+
+def _resize_dsize_tw_th(render_w: int, render_h: int, scale_x: float, scale_y: float) -> tuple:
+    tw = max(1, int(round(float(render_w) / float(scale_x))))
+    th = max(1, int(round(float(render_h) / float(scale_y))))
+    return tw, th
+
+
+def _squeeze_tensor_gray_hw(x: torch.Tensor) -> torch.Tensor:
+    while x.dim() > 2:
+        if x.shape[0] == 1:
+            x = x.squeeze(0)
+        elif x.shape[-1] == 1:
+            x = x.squeeze(-1)
+        else:
+            x = x[0]
+            break
+    return x
 
 
 def scale_intrs(intrs, ratio_x, ratio_y):
@@ -342,6 +397,8 @@ class ModelHumanA4OLRM(nn.Module):
             return PatchDPTDecoderOnly(**neural_renderer_kwargs)
         elif neural_renderer_type == "patch_4dptonly":
             return PatchDPT4DecoderOnly(**neural_renderer_kwargs)
+        elif neural_renderer_type == "mlp_pixelshuffle":
+            return PatchMLPPixelShuffleDPT4DecoderOnly(**neural_renderer_kwargs)
         elif neural_renderer_type == "patch_convonly":
             return ConvDecoderOnly(**neural_renderer_kwargs)
         else:
@@ -1235,6 +1292,7 @@ class ModelHumanA4OLRM(nn.Module):
         mask_seqs=None,
         output_rgb=None,
         infer_output_renderer: str = "neural",
+        return_gs_outputs: bool = False,
     ):
         """
         Perform animation inference for Gaussian Splatting-based human rendering.
@@ -1281,13 +1339,17 @@ class ModelHumanA4OLRM(nn.Module):
         num_views = render_c2ws.shape[1]
         output = []
         output_mask = []
+        gs_rgb_chunks = []
+        gs_mask_chunks = []
 
-        # DEBUG
+        if mask_seqs is not None and offset_list is None:
+            raise ValueError("animation_infer(mask_seqs=...) requires offset_list")
 
         for view_idx in range(num_views):
             if mask_seqs is not None:
                 mask = mask_seqs[view_idx]
-                _render_h, _render_w = mask.shape
+                mask_hw = _mask_any_to_hw_numpy(mask)
+                _render_h, _render_w = int(mask_hw.shape[0]), int(mask_hw.shape[1])
 
                 render_intr_view = render_intrs[:, view_idx : view_idx + 1]
                 intrs = render_intr_view
@@ -1342,25 +1404,31 @@ class ModelHumanA4OLRM(nn.Module):
                     # predict_rgbs = predict_rgbs * predict_masks + (1-predict_masks)
 
                     scale_x, scale_y, offset_x, offset_y = offset_list[view_idx]
+                    tw, th = _resize_dsize_tw_th(_render_w, _render_h, scale_x, scale_y)
                     predict_rgb = (
                         predict_rgbs[0, 0].detach().cpu().numpy() * 255
                     ).astype(np.uint8)
                     predict_rgb = cv2.resize(
                         predict_rgb,
-                        (int(_render_w / scale_x), int(_render_h / scale_y)),
+                        (tw, th),
                         interpolation=cv2.INTER_AREA,
                     )
 
-                    predict_mask = (
-                        predict_masks[0, 0].detach().cpu().numpy() * 255
-                    ).astype(np.uint8)[..., 0]
+                    if predict_masks is not None:
+                        predict_mask = _predict_mask_u8_hw(predict_masks[0, 0])
+                    else:
+                        predict_mask = (
+                            np.ones((predict_rgb.shape[0], predict_rgb.shape[1]), dtype=np.uint8)
+                            * 255
+                        )
                     predict_mask = cv2.resize(
                         predict_mask,
-                        (int(_render_w / scale_x), int(_render_h / scale_y)),
+                        (tw, th),
                         interpolation=cv2.INTER_NEAREST,
                     )
                 else:
                     scale_x, scale_y, offset_x, offset_y = offset_list[view_idx]
+                    tw, th = _resize_dsize_tw_th(_render_w, _render_h, scale_x, scale_y)
                     predict_rgb, predict_mask = self._animation_gs_rgb_mask_uint8(
                         render_results,
                         _render_h,
@@ -1368,12 +1436,12 @@ class ModelHumanA4OLRM(nn.Module):
                     )
                     predict_rgb = cv2.resize(
                         predict_rgb,
-                        (int(_render_w / scale_x), int(_render_h / scale_y)),
+                        (tw, th),
                         interpolation=cv2.INTER_AREA,
                     )
                     predict_mask = cv2.resize(
                         predict_mask,
-                        (int(_render_w / scale_x), int(_render_h / scale_y)),
+                        (tw, th),
                         interpolation=cv2.INTER_NEAREST,
                     )
 
@@ -1392,6 +1460,40 @@ class ModelHumanA4OLRM(nn.Module):
                 output_mask.append(
                     torch.from_numpy(mask_boards / 255.0).float().unsqueeze(0)
                 )
+
+                if return_gs_outputs:
+                    cr = render_results["comp_rgb"]
+                    cm = render_results["comp_mask"]
+                    comp_rgb_u8 = (
+                        (cr[0, 0].permute(1, 2, 0).clamp(0, 1).detach().cpu().numpy() * 255.0)
+                        .clip(0, 255)
+                        .astype(np.uint8)
+                    )
+                    comp_rgb_u8 = cv2.resize(
+                        comp_rgb_u8,
+                        (tw, th),
+                        interpolation=cv2.INTER_AREA,
+                    )
+                    gsm_u8 = _tensor_gray_to_hw_u8(cm[0, 0])
+                    gsm_u8 = cv2.resize(
+                        gsm_u8,
+                        (tw, th),
+                        interpolation=cv2.INTER_NEAREST,
+                    )
+                    _hg, _wg = comp_rgb_u8.shape[:2]
+                    pad_u8 = (output_rgb.clone().detach().cpu().numpy() * 255.0).clip(
+                        0, 255
+                    ).astype(np.uint8)
+                    gs_rgb_board = pad_u8.copy()
+                    gs_rgb_board[offset_y : offset_y + _hg, offset_x : offset_x + _wg] = (
+                        comp_rgb_u8
+                    )
+                    gs_m_board = np.zeros_like(boards[..., 0], dtype=np.float32)
+                    gs_m_board[
+                        offset_y : offset_y + _hg, offset_x : offset_x + _wg
+                    ] = gsm_u8.astype(np.float32) / 255.0
+                    gs_rgb_chunks.append(torch.from_numpy(gs_rgb_board / 255.0).float())
+                    gs_mask_chunks.append(torch.from_numpy(gs_m_board))
 
             else:
                 render_intr_view = render_intrs[:, view_idx : view_idx + 1]
@@ -1448,15 +1550,27 @@ class ModelHumanA4OLRM(nn.Module):
                     predict_rgb = (
                         predict_rgbs[0, 0].detach().cpu().numpy() * 255
                     ).astype(np.uint8)
-                    predict_mask = (
-                        predict_masks[0, 0].detach().cpu().numpy() * 255
-                    ).astype(np.uint8)[..., 0]
+                    if predict_masks is not None:
+                        predict_mask = _predict_mask_u8_hw(predict_masks[0, 0])
+                    else:
+                        predict_mask = (
+                            np.ones((predict_rgb.shape[0], predict_rgb.shape[1]), dtype=np.uint8)
+                            * 255
+                        )
                 else:
                     predict_rgb, predict_mask = self._animation_gs_rgb_mask_uint8(
                         render_results,
                         _render_h,
                         _render_w,
                     )
+
+                if return_gs_outputs:
+                    cr = render_results["comp_rgb"]
+                    cm = render_results["comp_mask"]
+                    rg_chunk = cr[0, 0].permute(1, 2, 0).clamp(0, 1)
+                    gsm_n = _squeeze_tensor_gray_hw(cm[0, 0])
+                    gs_rgb_chunks.append(rg_chunk)
+                    gs_mask_chunks.append(gsm_n.clamp(0, 1))
 
                 output.append(
                     torch.from_numpy(predict_rgb / 255.0).float().unsqueeze(0)
@@ -1470,6 +1584,11 @@ class ModelHumanA4OLRM(nn.Module):
 
         pred_rgbs = torch.cat(output, dim=0)
         pred_masks = torch.cat(output_mask, dim=0)
+
+        if return_gs_outputs:
+            gs_rgbs = torch.stack(gs_rgb_chunks, dim=0)
+            gs_masks = torch.stack(gs_mask_chunks, dim=0)
+            return pred_rgbs, pred_masks, gs_rgbs, gs_masks
 
         return pred_rgbs, pred_masks
 

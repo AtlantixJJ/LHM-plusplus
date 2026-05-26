@@ -67,10 +67,11 @@ def main() -> None:
     parser.add_argument(
         "--model_name",
         type=str,
-        default="LHMPP-700M-SMPLX-FREE",
+        default="LHMPP-700M-PixelShuffle",
         choices=[
-            "LHMPP-700M",
+            "LHMPP-700M-PixelShuffle",
             "LHMPP-700M-SMPLX-FREE",
+            "LHMPP-700M",
             "LHMPPS-700M",
         ],  # LHMPP-700MC coming soon
         help="Model to use",

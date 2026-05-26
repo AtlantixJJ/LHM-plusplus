@@ -12,6 +12,7 @@ sys.path.append("./")
 import torch
 import torch.nn as nn
 from core.models.heads.dpt_head import DPTHead
+from core.models.heads.mlp_head import MLPPixelShuffleDPTHead
 from core.models.transformer_block.transformer_dit import (
     SD3MMJointRopeTransformerBlock,
     SD3MMJointTransformerBlockV2,
@@ -780,6 +781,50 @@ class PatchDPT4DecoderOnly(PatchDPTDecoderOnly):
         rgb, mask = self.dense_predictor(intermediate_tokens, render_h, render_w)
 
         return rgb, mask
+
+
+class PatchMLPPixelShuffleDPT4DecoderOnly(PatchDPT4DecoderOnly):
+    """Same pipeline as ``PatchDPT4DecoderOnly``, but uses ``MLPPixelShuffleDPTHead`` (partial scratch + MLP + PixelShuffle)."""
+
+    def __init__(
+        self,
+        enc_channels,
+        img_dim,
+        num_heads=16,
+        enc_patch_size=14,
+        gradient_checkpointing=False,
+        depth=4,
+        merge_ratio=0.5,
+        pixel_shuffle_factor=2,
+        **kwargs,
+    ):
+        self.pixel_shuffle_factor = pixel_shuffle_factor
+        super().__init__(
+            enc_channels=enc_channels,
+            img_dim=img_dim,
+            num_heads=num_heads,
+            enc_patch_size=enc_patch_size,
+            gradient_checkpointing=gradient_checkpointing,
+            depth=depth,
+            merge_ratio=merge_ratio,
+            **kwargs,
+        )
+
+    def build_decoder(self, img_dim=1024):
+        intermediate_mapping = {
+            1: [0, 0, 0, 0],
+            4: [0, 1, 2, 3],
+            8: [1, 3, 6, 7],
+            12: [1, 3, 6, 11],
+            16: [3, 7, 12, 15],
+            24: [4, 11, 17, 23],
+        }
+        self.dense_predictor = MLPPixelShuffleDPTHead(
+            dim_in=1024 // self.depth,
+            patch_size=self.enc_patch_size,
+            intermediate_layer_idx=intermediate_mapping[self.depth],
+            pixel_shuffle_factor=self.pixel_shuffle_factor,
+        )
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ Usage:
     python scripts/test/test_app_case.py
 
     # Specify model, images, motion
-    python scripts/test/test_app_case.py --model_name LHMPP-700M-SMPLX-FREE \
+    python scripts/test/test_app_case.py --model_name LHMPP-700M-PixelShuffle \
         --image_glob "./assets/example_multi_images/00000_yuliang_*.png" \
         --motion_video "./motion_video/Dance_I/Dance_I.mp4" \
         --motion_size 120 --ref_view 8
@@ -62,10 +62,11 @@ def main() -> None:
     parser.add_argument(
         "--model_name",
         type=str,
-        default="LHMPP-700M-SMPLX-FREE",
+        default="LHMPP-700M-PixelShuffle",
         choices=[
-            "LHMPP-700M",
+            "LHMPP-700M-PixelShuffle",
             "LHMPP-700M-SMPLX-FREE",
+            "LHMPP-700M",
             "LHMPPS-700M",
         ],  # LHMPP-700MC coming soon
         help="Model to use",

@@ -15,7 +15,8 @@ Supported models must appear in ``core.utils.model_card.GS_RENDER_SUPPORTED_MODE
 Usage:
     # 仅图像：合成相机 + 规范 T-pose（``--pose_dir`` 默认为空）
     python scripts/inference/to_gs_ply.py \\
-        --model_name LHMPP-700M-SMPLX-FREE \\
+        --model_name LHMPP-700M-PixelShuffle \\
+        --model_path ./pretrained_models/Damo_XR_Lab/LHMPP-700M-PixelShuffle \\
         --image_glob "./assets/example_multi_images/00000_yuliang_*.png"
 
     # 指定某一帧 SMPL-X JSON：用该文件内相机与姿态做 animation 导出（不经视频/mask 管线）

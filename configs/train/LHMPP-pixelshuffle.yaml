@@ -1,0 +1,329 @@
+# LHM++ config: any-view + predicted shape + MLPPixelShuffle dense head.
+# Based on configs/train/LHMPP-anyview-SMPLX-FREE.yaml; merge_ratio must match training (0.0).
+# Uses neural_renderer naming (release). Omits logger/compile for inference-oriented use; train/val/saver kept for tooling compatibility.
+experiment:
+  type: lrm
+  seed: 42
+  parent: LHM-A4O-SMPLX-Train-20250706
+  child: LHMPP-pixelshuffle-inference
+model:
+  model_name: LHMA4O 
+  encoder_type: dinov2
+  encoder_model_name: dinov2_vitl14_reg
+  encoder_feat_dim: 1024
+  encoder_freeze: True 
+  latent_query_points_type: e2e_points
+  pcl_dim: 1024 
+  use_face_id: True
+  facesr: true
+  transformer_decoder: 
+    type: patch_efficient_pvt_mm_encoder_decoder_dense
+    point_backbone:
+      type: pv3
+      in_channels: 6  # xyz, normal
+      order:
+        - z
+        - z-trans
+        - hilbert  # mm-order
+        - hilbert-trans
+      stride:
+        - 1
+        - 2
+        - 2
+      enc_depths:
+        - 4
+        - 4
+        - 4
+        - 4
+      enc_channels:
+        - 64
+        - 128
+        - 256
+        - 512
+      enc_num_head:
+        - 4
+        - 8
+        - 16
+        - 16
+      enc_patch_size:
+        - 4096 
+        - 4096 
+        - 2048 
+        - 1024 
+      dec_depths:
+        - 4
+        - 4
+        - 4
+      dec_channels:
+        - 128 
+        - 256 
+        - 512 
+      dec_num_head:
+        - 16 
+        - 16 
+        - 16
+      dec_patch_size:
+        - 4096 
+        - 4096 
+        - 2048 
+      mlp_ratio: 4
+      qkv_bias: true
+      qk_scale: null
+      attn_drop: 0.0
+      proj_drop: 0.0
+      drop_path: 0.0
+      shuffle_orders: False # for patch interaction
+      pre_norm: true
+      enable_rpe: false
+      enable_flash: true
+      upcast_attention: false
+      upcast_softmax: false
+      traceable: true
+      mask_token: false
+      enc_mode: false 
+      freeze_encoder: false
+      decoder_concat_stop_feat: 2
+    image_backbone:
+      type: vggt
+      depth: 3
+      aa_order:
+        - frame  # only frame attention
+    freeze_image: True
+    freeze_point: True
+    merge_ratio: 0.0
+  transformer_type: mm  # multi-modality transformer
+  transformer_heads: 16 
+  transformer_dim: ${model.pcl_dim} 
+  transformer_layers: 1 
+  tf_grad_ckpt: true
+  encoder_grad_ckpt: true
+  human_model_path: ./pretrained_models/human_model_files
+  smplx_subdivide_num: 1
+  # smplx_type: mesh_smpl_voxel
+  smplx_type: smplx_diffused_voxel
+  gs_query_dim: 128 
+  gs_use_rgb: true
+  gs_sh: 3
+  dense_sample_pts: 160000 
+  render_features: True
+  neural_renderer:  # dense prediction model (RGB + mask).
+    type: mlp_pixelshuffle
+    enc_channels: 128
+    img_dim: 1024
+    depth: 4
+    gradient_checkpointing: true
+    enc_patch_size: 7
+    pixel_shuffle_factor: 2
+  neural_renderer_patch_size: 1
+  neural_renderer_input: "feats" # rgb+feats / feats
+  # gs_rendering: deformable_venilla # 3DGS
+  gs_rendering: featbacksplat # gsplat feature splat. 
+  deform_head_type: attn
+  gs_mlp_network_config:
+    n_neurons: 512 
+    n_hidden_layers: 2
+    activation: silu
+  gs_xyz_offset_max_step: 1.0
+  gs_clip_scaling:
+  - 0 
+  - 0.05
+  - 0.05
+  - 3000 
+  expr_param_dim: 100
+  shape_param_dim: 10
+  predict_shape_dim: 10
+  use_pred_shape_for_render: true
+  shape_head:
+    dim_in: 1024
+    trunk_depth: 2
+    num_iterations: 4
+    num_heads: 16
+    mlp_ratio: 4.0
+    init_values: 0.01
+  fix_opacity: false
+  fix_rotation: false
+  cano_pose_type: 1
+dataset:
+  # dataset.subsets[*].root_dirs and meta_path default to null; set local paths before use.
+  subsets:
+  - name: video_human_lhm_a4o_tar  # lhm dataset
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
+    meta_path:
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
+    sample_rate: 1.0
+    random_sample_ratio: 0.95  
+    use_flame: true
+    processing_pipeline:  # processing pipeline
+      - name: PadRatioWithScale
+        target_ratio: 5/3
+        tgt_max_size_list: 
+          - 840  # input max size
+      - name: UpRandomCrop
+        low: 0.6
+        high: 1.1
+      - name: ToTensor
+    src_head_size: 112
+    ref_img_size:  8 
+    womask: true 
+  - name: video_human_a4o_tar  # process_data v5 
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
+    meta_path:
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
+    sample_rate: 1.0
+    random_sample_ratio: 0.95  # only random sample.
+    use_flame: true
+    processing_pipeline:  # processing pipeline
+      - name: PadRatioWithScale
+        target_ratio: 5/3
+        tgt_max_size_list: 
+          - 840  # input max size
+      - name: UpRandomCrop
+        low: 0.6
+        high: 1.1
+      - name: ToTensor
+    src_head_size: 112
+    ref_img_size: 8 
+    womask: true
+  - name: video_human_a4o_tar  # process_data v6 
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
+    meta_path:
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
+    sample_rate: 1.0
+    random_sample_ratio: 0.95  # only random sample.
+    use_flame: true
+    processing_pipeline:  # processing pipeline
+      - name: PadRatioWithScale
+        target_ratio: 5/3
+        tgt_max_size_list: 
+          - 840  # input max size
+      - name: UpRandomCrop
+        low: 0.6
+        high: 1.1
+      - name: ToTensor
+    src_head_size: 112
+    ref_img_size: 8 
+    womask: true
+  - name: video_human_a4o_tar  # synthetic 
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
+    meta_path:
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
+    sample_rate: 1.0
+    random_sample_ratio: 0.95  # only random sample.
+    use_flame: true
+    processing_pipeline:  # processing pipeline
+      - name: PadRatioWithScale
+        target_ratio: 5/3
+        tgt_max_size_list: 
+          - 840  # input max size
+      - name: UpRandomCrop
+        low: 0.6
+        high: 1.1
+      - name: ToTensor
+    src_head_size: 112
+    ref_img_size: 8 
+    womask: true
+  - name: dna_a4o_tar # dna rendering dataset
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
+    meta_path:
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
+    sample_rate: 1.0
+    random_sample_ratio: 1.0  
+    use_flame: true
+    processing_pipeline:  # processing pipeline
+      - name: PadRatioWithScale
+        target_ratio: 5/3
+        tgt_max_size_list: 
+          - 840  # input max size
+      - name: UpRandomCrop
+        low: 0.8
+        high: 1.1
+      - name: ToTensor
+    src_head_size: 112
+    ref_img_size:  8 
+    womask: true 
+  sample_side_views: 7 
+  source_image_res: 512  # useless
+  render_image:
+    low: 420 
+    high: 420 
+    region: null
+  num_train_workers: 4
+  multiply: 14
+  num_val_workers: 2
+  pin_mem: true
+  repeat_num: 1 
+train:
+  mixed_precision: bf16
+  find_unused_parameters: false
+  loss_func:
+    pixel_loss: l1  # L1 or MSE
+    ball_loss:
+        type: heuristic  # heuristic ball_loss 
+        group: 
+            head: 1.
+            lower_body: 100.
+            upper_body: 1000.
+            hands: 10000.
+            constrain_body: 1000.
+    offset_loss:
+        type: heuristic  # heuristic offset loss 
+        group: 
+            head: 1.
+            lower_body: 1.  
+            upper_body: 1.
+            hands: 1000.
+    opacity_loss:
+        type: heuristic  # heuristic opacity loss 
+        group: 
+            lower_body: 1.
+  loss:
+      pixel_weight: 1.0
+      mask_weight: 1.0
+      perceptual_weight: 1.0
+      masked_pixel_weight: 1.0
+      tv_weight: -1
+      face_id_weight: 0:0.01:0.05:3000  # face-id weight
+      # face_id_weight: 0  # face-id weight
+      asap_weight: 10.0  # ball loss
+      acap_weight: 1000.0  # offset loss
+      opacity_weight: 0  # opacity loss
+  optim:
+    lr: 1e-4 
+    weight_decay: 0.0005
+    beta1: 0.9
+    beta2: 0.95
+    clip_grad_norm: 0.1
+  scheduler:
+    type: cosine
+    warmup_real_iters: 1000
+  batch_size: 2
+  accum_steps: 1
+  epochs: 10 
+  debug_global_steps: null
+  human_lrm: null
+val:
+  batch_size: 2
+  global_step_period: 1000
+  debug_batches: 10
+saver:
+  auto_resume: False
+  # User: pretrained checkpoint path (e.g. model.safetensors) when resuming; null if none.
+  load_model: null
+  checkpoint_root: ./exps/checkpoints
+  checkpoint_global_steps: 1000
+  checkpoint_keep_level: 100
