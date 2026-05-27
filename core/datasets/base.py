@@ -33,8 +33,12 @@ class BaseDataset(torch.utils.data.Dataset, ABC):
     def __init__(self, root_dirs: str, meta_path: str):
         super().__init__()
         self.root_dirs = root_dirs
-        self.uids = self._load_uids(meta_path)
-        self.uids = sorted(self.uids)
+        uids = self._load_uids(meta_path)
+        if uids and isinstance(uids[0], dict):
+            # JSON benchmark manifests: list[{"id", "img_path", ...}, ...]
+            self.uids = sorted(uids, key=lambda x: str(x.get("id", "")))
+        else:
+            self.uids = sorted(uids)
 
     def __len__(self):
         return len(self.uids)

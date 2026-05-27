@@ -17,7 +17,7 @@ Usage:
     python scripts/test/test_app_case.py
 
     # Specify model, images, motion
-    python scripts/test/test_app_case.py --model_name LHMPP-700M \
+    python scripts/test/test_app_case.py --model_name LHMPP-700M-PixelShuffle \
         --image_glob "./assets/example_multi_images/00000_yuliang_*.png" \
         --motion_video "./motion_video/Dance_I/Dance_I.mp4" \
         --motion_size 120 --ref_view 8
@@ -62,8 +62,13 @@ def main() -> None:
     parser.add_argument(
         "--model_name",
         type=str,
-        default="LHMPP-700M",
-        choices=["LHMPP-700M", "LHMPPS-700M"],  # LHMPP-700MC coming soon
+        default="LHMPP-700M-PixelShuffle",
+        choices=[
+            "LHMPP-700M-PixelShuffle",
+            "LHMPP-700M-SMPLX-FREE",
+            "LHMPP-700M",
+            "LHMPPS-700M",
+        ],  # LHMPP-700MC coming soon
         help="Model to use",
     )
     parser.add_argument(
@@ -166,10 +171,12 @@ def main() -> None:
 
     lhmpp = build_app_model(cfg)
     lhmpp.to("cuda")
-    pose_estimator = PoseEstimator(
-        "./pretrained_models/human_model_files/", device="cpu"
-    )
-    pose_estimator.device = "cuda"
+    pose_estimator = None
+    if cfg.get("use_smplx_shape_estimator", True):
+        pose_estimator = PoseEstimator(
+            "./pretrained_models/human_model_files/", device="cpu"
+        )
+        pose_estimator.device = "cuda"
 
     # Load images
     print(f"[2/6] Loading images from {args.image_glob}...")
@@ -215,17 +222,21 @@ def main() -> None:
     print(f"[5/6] Running inference...")
     device = "cuda"
     dtype = torch.float32
-    with torch.no_grad():
-        with easy_memory_manager(pose_estimator, device="cuda"):
-            shape_pose = pose_estimator(imgs[0])
-    assert shape_pose.is_full_body, f"Input image invalid: {shape_pose.msg}"
+    if pose_estimator is not None:
+        with torch.no_grad():
+            with easy_memory_manager(pose_estimator, device="cuda"):
+                shape_pose = pose_estimator(imgs[0])
+        assert shape_pose.is_full_body, f"Input image invalid: {shape_pose.msg}"
 
     img_np = np.stack(imgs) / 255.0
     ref_imgs_tensor = torch.from_numpy(img_np).permute(0, 3, 1, 2).float().to(device)
-    smplx_params = motion_seqs["smplx_params"].copy()
-    smplx_params["betas"] = torch.tensor(
-        shape_pose.beta, dtype=dtype, device=device
-    ).unsqueeze(0)
+    smplx_params = motion_seqs["smplx_params"]
+    if pose_estimator is not None:
+        smplx_params["betas"] = torch.tensor(
+            shape_pose.beta, dtype=dtype, device=device
+        ).unsqueeze(0)
+    else:
+        smplx_params = smplx_params.copy()
 
     rgbs = inference_results(
         lhmpp,

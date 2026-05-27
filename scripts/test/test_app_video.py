@@ -67,8 +67,13 @@ def main() -> None:
     parser.add_argument(
         "--model_name",
         type=str,
-        default="LHMPP-700M",
-        choices=["LHMPP-700M", "LHMPPS-700M"],  # LHMPP-700MC coming soon
+        default="LHMPP-700M-PixelShuffle",
+        choices=[
+            "LHMPP-700M-PixelShuffle",
+            "LHMPP-700M-SMPLX-FREE",
+            "LHMPP-700M",
+            "LHMPPS-700M",
+        ],  # LHMPP-700MC coming soon
         help="Model to use",
     )
     parser.add_argument(
@@ -192,13 +197,15 @@ def main() -> None:
     accelerator = Accelerator()
     cfg, _ = parse_app_configs(model_cards)
 
-    print("[1/6] Loading model...")
+    print("[1/5] Loading model...")
     lhmpp = build_app_model(cfg)
     lhmpp.to("cuda")
-    pose_estimator = PoseEstimator(
-        "./pretrained_models/human_model_files/", device="cpu"
-    )
-    pose_estimator.device = "cuda"
+    pose_estimator = None
+    if cfg.get("use_smplx_shape_estimator", True):
+        pose_estimator = PoseEstimator(
+            "./pretrained_models/human_model_files/", device="cpu"
+        )
+        pose_estimator.device = "cuda"
 
     output_dir = os.path.abspath(args.output_dir)
     os.makedirs(output_dir, exist_ok=True)
@@ -208,7 +215,7 @@ def main() -> None:
 
     working_dir = WorkingDir()
 
-    print(f"[2/6] Extracting reference frames from input video: {input_video}")
+    print(f"[2/5] Extracting reference frames from input video: {input_video}")
     imgs, save_sample_imgs, motion_path, dump_image_dir, dump_video_path = (
         prepare_input_and_output(
             image=None,
@@ -222,29 +229,31 @@ def main() -> None:
     )
     print(f"  Extracted {len(imgs)} reference frames, saved to {save_sample_imgs}")
 
-    print("[3/6] Loading motion sequences...")
+    print("[3/5] Loading motion sequences...")
     motion_name, motion_seqs = get_motion_information(
         motion_path, cfg, motion_size=args.motion_size
     )
     video_size = len(motion_seqs["motion_seqs"])
     print(f"  Motion: {motion_name}, frames: {video_size}")
 
-    print("[4/6] Running pose estimation...")
+    print("[4/5] Running inference...")
     device = "cuda"
     dtype = torch.float32
-    with torch.no_grad():
-        with easy_memory_manager(pose_estimator, device="cuda"):
-            shape_pose = pose_estimator(imgs[0])
-    if not shape_pose.is_full_body:
-        raise ValueError(f"Input video invalid: {shape_pose.msg}")
-
-    print("[5/6] Running inference...")
+    if pose_estimator is not None:
+        with torch.no_grad():
+            with easy_memory_manager(pose_estimator, device="cuda"):
+                shape_pose = pose_estimator(imgs[0])
+        if not shape_pose.is_full_body:
+            raise ValueError(f"Input video invalid: {shape_pose.msg}")
     img_np = np.stack(imgs) / 255.0
     ref_imgs_tensor = torch.from_numpy(img_np).permute(0, 3, 1, 2).float().to(device)
-    smplx_params = motion_seqs["smplx_params"].copy()
-    smplx_params["betas"] = torch.tensor(
-        shape_pose.beta, dtype=dtype, device=device
-    ).unsqueeze(0)
+    smplx_params = motion_seqs["smplx_params"]
+    if pose_estimator is not None:
+        smplx_params["betas"] = torch.tensor(
+            shape_pose.beta, dtype=dtype, device=device
+        ).unsqueeze(0)
+    else:
+        smplx_params = smplx_params.copy()
 
     rgbs = inference_results(
         lhmpp,
@@ -262,7 +271,7 @@ def main() -> None:
     video_for_fps = samurai_path if os.path.isfile(samurai_path) else motion_video
     render_fps = get_motion_video_fps(video_for_fps, default=args.render_fps)
 
-    print(f"[6/6] Saving video ({render_fps} fps) to {dump_video_path}...")
+    print(f"[5/5] Saving video ({render_fps} fps) to {dump_video_path}...")
     iio.imwrite(
         dump_video_path,
         rgbs,

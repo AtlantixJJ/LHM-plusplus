@@ -116,12 +116,15 @@ model:
   fix_rotation: false
   cano_pose_type: 1
 dataset:
+  # dataset.subsets[*].root_dirs and meta_path default to null; set local paths before use.
   subsets:
   - name: video_human_lhm_a4o_tar
-    root_dirs: /mnt/workspaces/dataset/video_human_datasets/LHM_video_dataset/
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
     meta_path:
-      train: /mnt/workspaces/dataset/video_human_datasets/clean_labels/valid_LHM_dataset_train_filter_16W.json
-      val: ./train_data/ClothVideo/label/valid_LHM_dataset_train_val_100.json
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
     sample_rate: 1.0
     random_sample_ratio: 1.0
     use_flame: true
@@ -141,10 +144,12 @@ dataset:
     ref_img_size: 1
     womask: true
   - name: video_human_a4o_tar
-    root_dirs: /mnt/workspaces/dataset/video_human_datasets/selected_dataset_v5_tar/
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
     meta_path:
-      train: /mnt/workspaces/dataset/video_human_datasets/clean_labels/valid_selected_datasetv5_train_filter40K.json
-      val: /mnt/workspaces/dataset/video_human_datasets/clean_labels/valid_selected_datasetv5_val_filter460-self-rotated-69.json
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
     sample_rate: 1.0
     random_sample_ratio: 1.0
     use_flame: true
@@ -164,10 +169,12 @@ dataset:
     ref_img_size: 1
     womask: true
   - name: video_human_a4o_tar
-    root_dirs: /mnt/workspaces/dataset/video_human_datasets/selected_dataset_v6_tar/
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
     meta_path:
-      train: /mnt/workspaces/dataset/video_human_datasets/clean_labels/valid_selected_datasetv6_train_5W.json
-      val: /mnt/workspaces/dataset/video_human_datasets/clean_labels/valid_selected_datasetv6_test_100-self-rotated-25.json
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
     sample_rate: 1.0
     random_sample_ratio: 1.0
     use_flame: true
@@ -187,10 +194,12 @@ dataset:
     ref_img_size: 1
     womask: true
   - name: video_human_a4o_tar
-    root_dirs: /mnt/workspaces/dataset/video_human_datasets/synthetic_data_tar/
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
     meta_path:
-      train: /mnt/workspaces/dataset/video_human_datasets/clean_labels/valid_LHM_synthetic_dataset_train_3700.json
-      val: /mnt/workspaces/dataset/video_human_datasets/clean_labels/valid_LHM_synthetic_dataset_val_60.json
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
     sample_rate: 1.0
     random_sample_ratio: 1.0
     use_flame: true
@@ -278,6 +287,7 @@ val:
   debug_batches: 10
 saver:
   auto_resume: true
+  # User: pretrained checkpoint path (e.g. model.safetensors) when resuming; null if none.
   load_model: null
   checkpoint_root: ./exps/checkpoints
   checkpoint_global_steps: 1000

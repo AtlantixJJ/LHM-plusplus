@@ -5,6 +5,7 @@
 # @Time          : 2026-03-10 10:00:00
 # @Function      : LHM++ Gradio App inference logic
 
+import logging
 import os
 from typing import Any, Dict, Optional, Tuple
 
@@ -13,6 +14,8 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from core.utils.hf_hub import wrap_model_hub
+
+logger = logging.getLogger(__name__)
 
 # Default batch size for inference
 DEFAULT_BATCH_SIZE = 40
@@ -41,6 +44,15 @@ def parse_app_configs(
 
     if model_config is not None:
         cfg_train = OmegaConf.load(model_config)
+        use_pred_render = OmegaConf.select(
+            cfg_train, "model.use_pred_shape_for_render", default=False
+        )
+        cfg.use_smplx_shape_estimator = not bool(use_pred_render)
+        if not cfg.use_smplx_shape_estimator:
+            logger.warning(
+                "SMPL-X FREE model: DO NOT USE SMPL-X PRIOR "
+                "(PoseEstimator / SMPL-X shape-from-image estimation is disabled)."
+            )
         cfg.source_size = cfg_train.dataset.source_image_res
         try:
             cfg.src_head_size = cfg_train.dataset.src_head_size
@@ -93,6 +105,7 @@ def inference_results(
     visualized_center: bool = False,
     batch_size: int = DEFAULT_BATCH_SIZE,
     device: str = "cuda",
+    infer_output_renderer: str = "neural",
 ) -> np.ndarray:
     """Run inference on a motion sequence with batching to prevent OOM.
 
@@ -106,6 +119,8 @@ def inference_results(
         visualized_center: If True, crops output to subject bounds with 10% padding.
         batch_size: Number of frames to process in each batch.
         device: Device to run inference on.
+        infer_output_renderer: ``"neural"`` applies the refinement decoder after GS
+            rasterization; ``"gs"`` outputs rasterized Gaussian splat RGB only.
 
     Returns:
         Rendered RGB frames as numpy array of shape (T, H, W, 3).
@@ -117,6 +132,9 @@ def inference_results(
         ref_img_tensors.shape[0], dtype=torch.bool, device=device
     )
 
+    smplx_params_dev = {k: v.to(device) for k, v in smplx_params.items()}
+    use_pred_render = getattr(model, "use_pred_shape_for_render", False)
+
     model_outputs = model.infer_single_view(
         ref_img_tensors.unsqueeze(0).to(device),
         None,
@@ -124,11 +142,24 @@ def inference_results(
         render_c2ws=motion_seq["render_c2ws"].to(device),
         render_intrs=motion_seq["render_intrs"].to(device),
         render_bg_colors=motion_seq["render_bg_colors"].to(device),
-        smplx_params={k: v.to(device) for k, v in smplx_params.items()},
+        smplx_params=smplx_params_dev,
         ref_imgs_bool=ref_imgs_bool.unsqueeze(0),
+        return_pred_shape=use_pred_render,
     )
 
-    if len(model_outputs) == 7:
+    pred_shape = None
+    if len(model_outputs) == 8:
+        (
+            gs_model_list,
+            query_points,
+            transform_mat_neutral_pose,
+            gs_hidden_features,
+            image_latents,
+            motion_emb,
+            pos_emb,
+            pred_shape,
+        ) = model_outputs
+    elif len(model_outputs) == 7:
         (
             gs_model_list,
             query_points,
@@ -149,8 +180,16 @@ def inference_results(
         ) = model_outputs
         pos_emb = None
 
+    if pred_shape is not None and use_pred_render:
+        smplx_for_animation = type(model).smplx_params_with_pred_shape_betas(
+            smplx_params_dev, pred_shape
+        )
+        animation_betas = smplx_for_animation["betas"]
+    else:
+        animation_betas = smplx_params_dev["betas"]
+
     batch_smplx_params = {
-        "betas": smplx_params["betas"].to(device),
+        "betas": animation_betas,
         "transform_mat_neutral_pose": transform_mat_neutral_pose,
     }
 
@@ -218,6 +257,7 @@ def inference_results(
             anim_kwargs["mask_seqs"] = mask_seqs
         if output_rgb is not None:
             anim_kwargs["output_rgb"] = output_rgb
+        anim_kwargs["infer_output_renderer"] = infer_output_renderer
 
         batch_rgb, batch_mask = model.animation_infer(**anim_kwargs)
         batch_rgb_list.append((batch_rgb.clamp(0, 1) * 255).to(torch.uint8).numpy())

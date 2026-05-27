@@ -896,6 +896,13 @@ def prepare_motion_seqs_eval(
         masks.append(crop_mask)
         offset_list.append(offset_entry)
 
+    if not c2ws:
+        raise RuntimeError(
+            "prepare_motion_seqs_eval: no valid frames (empty c2ws). "
+            "Usually every SMPL-X JSON under smplx_params needs a matching PNG in samurai_seg; "
+            "missing masks are skipped until the tensor list is empty."
+        )
+
     c2ws = torch.stack(c2ws, dim=0)
     intrs = torch.stack(intrs, dim=0)
     bg_colors = torch.tensor(bg_colors, dtype=torch.float32).unsqueeze(-1).repeat(1, 3)

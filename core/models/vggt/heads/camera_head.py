@@ -12,9 +12,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from vggt.heads.head_act import activate_pose
-from vggt.layers import Mlp
-from vggt.layers.block import Block
+from core.models.vggt.heads.head_act import activate_pose
+from core.models.vggt.layers import Mlp
+from core.models.vggt.layers.block import Block
 
 
 class CameraHead(nn.Module):

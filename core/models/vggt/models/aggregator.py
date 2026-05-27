@@ -11,10 +11,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from vggt.layers import PatchEmbed
-from vggt.layers.block import Block
-from vggt.layers.rope import PositionGetter, RotaryPositionEmbedding2D
-from vggt.layers.vision_transformer import vit_base, vit_giant2, vit_large, vit_small
+from core.models.vggt.layers import PatchEmbed
+from core.models.vggt.layers.block import Block
+from core.models.vggt.layers.rope import PositionGetter, RotaryPositionEmbedding2D
+from core.models.vggt.layers.vision_transformer import vit_base, vit_giant2, vit_large, vit_small
 
 logger = logging.getLogger(__name__)
 

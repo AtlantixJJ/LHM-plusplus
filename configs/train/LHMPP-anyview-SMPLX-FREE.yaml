@@ -1,8 +1,11 @@
+# LHM++ config: any-view + predicted shape (SMPLX-FREE / ShapeHead).
+# Based on configs/train/LHMPP-any-view.yaml; shape_head fields match prior SMPLX-FREE training recipe.
+# Uses neural_renderer naming (release). Omits logger/compile for inference-oriented use; train/val/saver kept for tooling compatibility.
 experiment:
   type: lrm
   seed: 42
-  parent: LHM-A4O-SMPLX-Train-904
-  child: LHM-A4O-SMPLX-Train-MV-DPTOnly-BackModeling-8views # beta: masked_pixel + pixel loss
+  parent: LHM-A4O-SMPLX-Train-20250706
+  child: LHMPP-shapehead-multiview
 model:
   model_name: LHMA4O 
   encoder_type: dinov2
@@ -103,16 +106,16 @@ model:
   gs_sh: 3
   dense_sample_pts: 160000 
   render_features: True
-  neural_renderer:  # dense prediction model (was dpt_decoder)
+  neural_renderer:  # dense prediction model (RGB + mask).
     # type: patch_efficientdpt
-    type: patch_dptonly
+    type: patch_4dptonly
     enc_channels: 128
     img_dim: 1024
-    depth: 1
+    depth: 4
     gradient_checkpointing: True
     enc_patch_size: 7
-  neural_renderer_patch_size: 1  # was dpt_patch_size
-  neural_renderer_input: "feats"  # was dpt_input; rgb+feats / feats
+  neural_renderer_patch_size: 1
+  neural_renderer_input: "feats" # rgb+feats / feats
   # gs_rendering: deformable_venilla # 3DGS
   gs_rendering: featbacksplat # gsplat feature splat. 
   deform_head_type: attn
@@ -128,6 +131,15 @@ model:
   - 3000 
   expr_param_dim: 100
   shape_param_dim: 10
+  predict_shape_dim: 10
+  use_pred_shape_for_render: true
+  shape_head:
+    dim_in: 1024
+    trunk_depth: 2
+    num_iterations: 4
+    num_heads: 16
+    mlp_ratio: 4.0
+    init_values: 0.01
   fix_opacity: false
   fix_rotation: false
   cano_pose_type: 1
@@ -155,7 +167,6 @@ dataset:
       - name: ToTensor
     src_head_size: 112
     ref_img_size:  8 
-    constrain_cano: True
     womask: true 
   - name: video_human_a4o_tar  # process_data v5 
     # User: root directory for this subset (e.g. unpacked archives / data root).
@@ -179,7 +190,6 @@ dataset:
     src_head_size: 112
     ref_img_size: 8 
     womask: true
-    constrain_cano: True
   - name: video_human_a4o_tar  # process_data v6 
     # User: root directory for this subset (e.g. unpacked archives / data root).
     root_dirs: null
@@ -202,7 +212,6 @@ dataset:
     src_head_size: 112
     ref_img_size: 8 
     womask: true
-    constrain_cano: True
   - name: video_human_a4o_tar  # synthetic 
     # User: root directory for this subset (e.g. unpacked archives / data root).
     root_dirs: null
@@ -318,18 +327,3 @@ saver:
   checkpoint_root: ./exps/checkpoints
   checkpoint_global_steps: 1000
   checkpoint_keep_level: 100
-logger:
-  stream_level: WARNING
-  log_level: INFO
-  log_root: ./exps/logs
-  tracker_root: ./exps/trackers
-  enable_profiler: false
-  trackers:
-  - tensorboard
-  image_monitor:
-    train_global_steps: 500 
-    samples_per_log: 4
-compile:
-  suppress_errors: true
-  print_specializations: true
-  disable: true

@@ -18,10 +18,12 @@
 
 #### 模型规格
 
-| 类型 | 视角 | 特征维度 | 注意力头数 | GS 点数 | 编码器维度 | 显存需求 | 推理时间 (1v) | 推理时间 (4v) | 推理时间 (8v) | 推理时间 (16v) |
-|------|------|----------|------------|---------|------------|----------|---------------|---------------|---------------|----------------|
-| LHMPP-700M | Any | 1024 | 16 | 160,000 | 1024 | 8 GB | 0.79 s | 1.00 s | 1.31 s | 2.13 s |
-| LHMPPS-700M | Any | 1024 | 16 | 160,000 | 1024 | 7.3 GB | 0.79 s | 1.00 s | 1.31 s | 2.13 s |
+| 类型 | 视角 | 3DGS-OUTPUT | 特征维度 | 注意力头数 | GS 点数 | 编码器维度 | 显存需求 | 推理时间 (1v) | 推理时间 (4v) | 推理时间 (8v) | 推理时间 (16v) |
+|------|------|-------------|----------|------------|---------|------------|----------|---------------|---------------|---------------|----------------|
+| LHMPP-700M-PixelShuffle | Any | ✓ | 1024 | 16 | 160,000 | 1024 | 8 GB | 0.79 s | 1.00 s | 1.31 s | 2.13 s |
+| LHMPP-700M-SMPLX-FREE | Any | ✓ | 1024 | 16 | 160,000 | 1024 | 8 GB | 0.79 s | 1.00 s | 1.31 s | 2.13 s |
+| LHMPP-700M | Any | — | 1024 | 16 | 160,000 | 1024 | 8 GB | 0.79 s | 1.00 s | 1.31 s | 2.13 s |
+| LHMPPS-700M | Any | — | 1024 | 16 | 160,000 | 1024 | 7.3 GB | 0.79 s | 1.00 s | 1.31 s | 2.13 s |
 
 #### 效率分析
 
@@ -43,11 +45,21 @@ For English readers, see [README in English](./README.md).
 
 ## 📢 最新动态
 
+- **LHMPP-700M-PixelShuffle（默认）：** SMPLX-FREE 变体，神经渲染头为 **MLPPixelShuffle**（比 DPT 更轻量的 dense head）。支持 **3DGS-PLY 导出** 与 **`gs_render` 输出**（见 [`GS_RENDER_SUPPORTED_MODEL_NAMES`](./core/utils/model_card.py)）。Hub 权重待发布；在此之前请使用本地 checkpoint + `--model_path`。
+- **LHMPP-700M（新版本）：** 已发布支持 **标准 3D Gaussian Splatting PLY（`3GS-PLY`）** 输出的新版本。
+
+### 新功能
+
+- **导出 `gs.ply`：** 运行 [`scripts/inference/to_gs_ply.py`](./scripts/inference/to_gs_ply.py)，将 **3D Gaussian Splatting** 存为标准 **`.ply`**：**规范 T-pose**（不传或留空 `--pose_dir`）或 **单帧 SMPL-X JSON**（`--pose_dir` 指向某一帧参数）。支持 **`LHMPP-700M-PixelShuffle`**（默认）与 **`LHMPP-700M-SMPLX-FREE`**（见 [`GS_RENDER_SUPPORTED_MODEL_NAMES`](./core/utils/model_card.py)）。完整说明见下文 **快速开始 → 导出 GS PLY（`to_gs_ply.py`）**。
+- **GS 渲染结果：** 在 [`app.py`](./app.py) 中使用 **`gs_render`**，仅由高斯光栅得到 **RGB**（不走神经细化解码器）。加载 **`LHMPP-700M-PixelShuffle`** 或 **`LHMPP-700M-SMPLX-FREE`** 时可用启动参数 **`--gs`**，或在界面中将 **Output Renderer** 切到 **gs_render**。详见下文 **本地 Gradio 运行**。
+
 ### TODO List
 
 - [x] 核心推理流程 (v0.1) 🔥🔥🔥
 - [x] 发布代码与预训练权重
 - [x] HuggingFace 演示集成 🤗🤗🤗
+- [x] **Benchmarks — 动态重建（dynamic reconstruction）：** 评测代码与验证数据（**NeuMan**、**SelfCapture**、**Vid2Avatar**），见 [动态 Benchmark 评测](#动态-benchmark-评测evaluation)
+- [ ] **Benchmarks — 新视角/新姿态合成（novel view/pose synthesis）：** TODO（**THuman-2.1**、**DNA-Rendering** 等）
 - [ ] ModelScope Space 在线演示
 - [ ] 发布训练与测试数据（许可可用）
 - [ ] 发布训练代码 
@@ -129,7 +141,7 @@ python scripts/download_pretrained_models.py
 # 仅先验模型 (human_model_files, voxel_grid, BiRefNet 等)
 python scripts/download_pretrained_models.py --prior
 
-# 仅 LHM++ 模型权重 (LHMPP-700M, LHMPP-700MC, LHMPPS-700M)
+# 仅 LHM++ 模型权重（默认 LHMPP-700M-PixelShuffle，另有 LHMPP-700M-SMPLX-FREE、LHMPP-700M、LHMPP-700MC、LHMPPS-700M）
 python scripts/download_pretrained_models.py --models
 
 # 自定义保存目录
@@ -140,9 +152,11 @@ python scripts/download_pretrained_models.py --save-dir /path/to/pretrained_mode
 ```python
 from modelscope import snapshot_download
 
-# LHMPP-700M（默认模型权重）
-model_dir = snapshot_download(model_id='Damo_XR_Lab/LHMPP-700M', cache_dir='./pretrained_models')
-# 或: LHMPP-700MC, LHMPPS-700M
+# LHMPP-700M-PixelShuffle（默认模型权重；Hub 发布前请配合 --model_path）
+model_dir = snapshot_download(model_id='Damo_XR_Lab/LHMPP-700M-PixelShuffle', cache_dir='./pretrained_models')
+# 或: LHMPP-700M-SMPLX-FREE, LHMPP-700M, LHMPP-700MC, LHMPPS-700M
+# model_dir = snapshot_download(model_id='Damo_XR_Lab/LHMPP-700M-SMPLX-FREE', cache_dir='./pretrained_models')
+# model_dir = snapshot_download(model_id='Damo_XR_Lab/LHMPP-700M', cache_dir='./pretrained_models')
 # model_dir = snapshot_download(model_id='Damo_XR_Lab/LHMPP-700MC', cache_dir='./pretrained_models')
 # model_dir = snapshot_download(model_id='Damo_XR_Lab/LHMPPS-700M', cache_dir='./pretrained_models')
 
@@ -169,7 +183,8 @@ python scripts/download_motion_video.py --save-dir .
 │   ├── efficiency_analysis
 │   ├── example_aigc_images
 │   ├── example_multi_images
-│   └── example_videos
+│   ├── example_videos
+│   └── dynamic_metrics_table.md
 ├── benchmark
 ├── configs
 │   └── train
@@ -240,10 +255,131 @@ python ./scripts/test/test_app_video.py --input_video ./assets/example_videos/wo
 python ./scripts/test/test_app_case.py
 
 # 启动 LHM++ Gradio 应用
-python ./app.py --model_name [LHMPP-700M, LHMPPS-700M]，默认 LHMPP-700M
+python ./app.py --model_name [LHMPP-700M-PixelShuffle, LHMPP-700M-SMPLX-FREE, LHMPP-700M, LHMPPS-700M]，默认 LHMPP-700M-PixelShuffle
 ```
 
+**输出渲染后端（仅 `app.py`）：** 可通过互斥参数指定 Gradio 界面里 **Output Renderer** 的**启动默认值**：
+
+| 参数 | 说明 |
+|------|------|
+| （不传） | 启动时使用 **neural_render**（高斯光栅 + 神经细化）。 |
+| `--neural` | 显式与默认一致，启动时使用 **neural_render**。 |
+| `--gs` | 启动时优先 **gs_render**（仅高斯光栅 RGB，不走神经解码器）。**`LHMPP-700M-PixelShuffle` 与 `LHMPP-700M-SMPLX-FREE` 均支持**。若与其它 `--model_name` 联用，程序会打日志警告并**强制改回 neural_render**。 |
+
+示例：
+
+```bash
+# 默认（neural_render）；PixelShuffle 在 Hub 发布前需 --model_path
+python ./app.py --model_path ./pretrained_models/Damo_XR_Lab/LHMPP-700M-PixelShuffle
+
+# 显式 neural_render
+python ./app.py --model_name LHMPP-700M-PixelShuffle --model_path ./pretrained_models/Damo_XR_Lab/LHMPP-700M-PixelShuffle --neural
+
+# 启动时默认 gs_render（默认模型）
+python ./app.py --model_path ./pretrained_models/Damo_XR_Lab/LHMPP-700M-PixelShuffle --gs
+
+# LHMPP-700M-SMPLX-FREE
+python ./app.py --model_name LHMPP-700M-SMPLX-FREE --gs
+```
+
+若当前加载的模型支持 **gs_render**（**`LHMPP-700M-PixelShuffle`** 或 **`LHMPP-700M-SMPLX-FREE`**），仍可在 Gradio 界面中随时切换 **Output Renderer**。
+
+### 导出 GS PLY（`to_gs_ply.py`）
+
+将 **3D Gaussian Splatting** 导出为 **PLY**。仅当模型在 [`core/utils/model_card.py`](./core/utils/model_card.py) 的 **`GS_RENDER_SUPPORTED_MODEL_NAMES`** 中登记（默认 **`LHMPP-700M-PixelShuffle`**、**`LHMPP-700M-SMPLX-FREE`**）才可运行。
+
+在仓库根目录 **`LHM-plusplus`** 下，完成 [环境配置](#环境配置) 并准备好 **先验模型与权重** 后：
+
+| 模式 | 如何触发 | 得到什么 |
+|------|----------|----------|
+| **T-pose（规范空间）** | **不传**或**留空** `--pose_dir`（默认） | 在 **规范 T-pose** SMPL-X 角空间下的高斯；无动作文件时用 **合成** 单帧相机。 |
+| **任意姿态（单帧 SMPL-X）** | 将 **`--pose_dir`** 设为 **一个** SMPL-X JSON | 高斯经 **`animate_gs_model`** 形变到 **该 JSON 对应帧** 的身体姿态；该文件里的相机内参等会参与前向。不走视频 / mask 整段管线，**只读该 JSON**。 |
+
+**实现说明（与当前脚本一致）：** 两种模式都会先对参考图做 `infer_single_view`。**T-pose** 分支再构建规范 SMPL-X，经 **`model.inference_gs`** 后 `save_ply`。**任意姿态** 分支从 JSON 拼 SMPL-X，保存 **`model.renderer.animate_gs_model`** 返回的 **第一站姿态高斯**（与渲染器里 **`forward_animate_gs`** 的 warp 一致）。若该路径未得到姿态高斯，会 **回退** 到 **`model.inference_gs`**。
+
+#### 1）输出 T-pose（规范空间、无姿态 JSON）
+
+**保持 `--pose_dir` 为空（默认）。**脚本使用合成的单帧相机，经 **`inference_gs`** 导出 **规范 T-pose** 高斯（见上表与实现说明）。
+
+**默认保存：** `<仓库根>/outputs/tpose_output/{参考图父目录名}.ply`  
+（例：`./assets/example_multi_images/*.png` → `.../tpose_output/example_multi_images.ply`）
+
+```bash
+cd LHM-plusplus
+
+python scripts/inference/to_gs_ply.py \
+  --model_path ./pretrained_models/Damo_XR_Lab/LHMPP-700M-PixelShuffle \
+  --image_glob "./assets/example_multi_images/00000_yuliang_*.png"
+```
+
+#### 2）输出任意姿态（单个 SMPL-X JSON）
+
+传入 **`--pose_dir`**，指向 **某一帧** 的 SMPL-X 参数文件（例如 `motion_video/BasketBall_I/smplx_params/00014.json`）。脚本**只读取该 JSON** 中的相机与身体姿态，**不再走** 视频 / `get_motion_information` / mask 管线。导出的 PLY 为 **`animate_gs_model`** 得到的 **已姿态化** 高斯（而非仅规范模板分支）。若存在同名 FLAME 文件，会尝试读取 `../flame_params/<同名>.json`。
+
+**默认保存：** `<仓库根>/outputs/animation_output/{序列目录名}/{参考图父目录名}_{json文件名不含扩展名}.ply`  
+（例：`.../animation_output/BasketBall_I/example_multi_images_00014.ply`）
+
+```bash
+cd LHM-plusplus
+
+python scripts/inference/to_gs_ply.py \
+  --model_path ./pretrained_models/Damo_XR_Lab/LHMPP-700M-PixelShuffle \
+  --pose_dir "./motion_video/BasketBall_I/smplx_params/00014.json" \
+  --image_glob "./assets/example_multi_images/00000_yuliang_*.png"
+```
+
+**可选：** `--output /path/to/out.ply` 覆盖默认路径；`--model_path` 指向本地权重目录时仍需保留 `--model_name` 以加载对应 YAML（**`LHMPP-700M-PixelShuffle`** 在 Hub 发布前建议指定 `--model_path`）。
+
+常用参数：`--images_dir`、`--ref_view`、`--device`、`--work_dir`。若配置开启 `use_smplx_shape_estimator`，会从图像估计 **betas**，与 Gradio 一致。
+
 **运行建议：** 保证输入的图像足够高清，尽量能够看到手部信息，输入中至少有一张图片中身体足够舒展开来。
+
+### 动态 Benchmark 评测（Evaluation）
+
+在与我们方法对比时，若**未在 motion 上与验证集严格配对**，评测指标会**显著偏低**。为**公平比较**，我们提供了**自行处理的验证集**，便于**直接复现我们的结果**。
+
+**数据：** `evaluation/dynamic_benchmark/` 下的 **NeuMan**、**SelfCapture**、**Vid2Avatar** scene，timeline 见 `benchmark/manifests/eval_lhmpp_*.json`。每个 scene 含 timeline 帧与 **16** 张 `ref_imgs_png/` 参考图；评测时均匀采样 **8** 张参考视角。
+
+从 ModelScope [`Damo_XR_Lab/LHMPP-Evaluation-Benchmark`](https://modelscope.cn/models/Damo_XR_Lab/LHMPP-Evaluation-Benchmark) 下载：
+
+```bash
+python scripts/download_evaluation/download_dynamic_benchmarks.py
+```
+
+**论文/表格数字：** [assets/dynamic_metrics_table.md](./assets/dynamic_metrics_table.md)
+
+使用 [`infer_eval_animation.py`](./scripts/inference/dynamic/infer_eval_animation.py) 做 masked animation 推理。通过 **`--dataset`** 选择 benchmark；不加 **`--gs-output`** 为 **Neural** 导出，加上则为 **GS** 导出。
+
+**Neural 渲染**（默认，输出 `neural_rgb/` / `neural_mask/`）：
+
+```bash
+cd LHM-plusplus
+
+python scripts/inference/dynamic/infer_eval_animation.py --dataset neuman
+python scripts/inference/dynamic/infer_eval_animation.py --dataset selfcapture
+python scripts/inference/dynamic/infer_eval_animation.py --dataset vid2avatar
+```
+
+**GS 光栅**（输出 `gs_rgb/` / `gs_mask/`）：
+
+```bash
+python scripts/inference/dynamic/infer_eval_animation.py --dataset neuman --gs-output
+python scripts/inference/dynamic/infer_eval_animation.py --dataset selfcapture --gs-output
+python scripts/inference/dynamic/infer_eval_animation.py --dataset vid2avatar --gs-output
+```
+
+结果写入 `./exps/benchmarks/dynamic/{dataset}-1036x616-datashape-{neural|gs}/{scene_id}/`（默认模型 **`LHMPP-700M-PixelShuffle`**、**8** 参考视角、**`--src-height 1036`**、datashape）。
+
+**指标计算**（推理完成后）：
+
+```bash
+python tools/metrics/compute_dynamic_metrics.py --root ./exps/benchmarks/dynamic --dataset neuman
+python tools/metrics/compute_dynamic_metrics.py --root ./exps/benchmarks/dynamic --dataset selfcapture
+python tools/metrics/compute_dynamic_metrics.py --root ./exps/benchmarks/dynamic --dataset vid2avatar
+```
+
+每个 dataset 会在 `./exps/benchmarks/dynamic/` 下生成 `dynamic_metrics_<dataset>.meta.json`。
+
 
 ## 更多工作
 欢迎关注我们团队的其他工作：

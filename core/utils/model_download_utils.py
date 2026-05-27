@@ -548,6 +548,23 @@ class AutoModelQuery:
         return self._ensure_trailing_slash(model_path)
 
 
+def prior_model_check(save_dir: str = "./pretrained_models") -> None:
+    """Ensure prior assets (``human_model_files``, etc.) exist under ``save_dir``."""
+    human_model_path = os.path.join(save_dir, "human_model_files")
+    if os.path.exists(human_model_path):
+        return
+    if os.path.islink(human_model_path):
+        try:
+            os.unlink(human_model_path)
+            print("Removed broken symlink: human_model_files")
+        except OSError as e:
+            print(f"Failed to remove broken symlink: {e}")
+    print("Prior models not found or invalid. Downloading...")
+    auto_query = AutoModelQuery(save_dir=save_dir)
+    auto_query.download_all_prior_models()
+    print("Prior models ready.")
+
+
 if __name__ == "__main__":
     test_save_dir = "./pretrained_models"
     print(

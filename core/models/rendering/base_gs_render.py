@@ -702,6 +702,8 @@ class BaseGSRender(nn.Module):
         query_points_pos = query_points["neutral_coords"]
         mesh_meta = query_points["mesh_meta"]
 
+        return_posed_gaussians = bool(kwargs.pop("return_posed_gaussians", False))
+
         gs_list = []
         for b in range(batch_size):
             # Animate GS models
@@ -713,7 +715,12 @@ class BaseGSRender(nn.Module):
                 mesh_meta=mesh_meta,
             )
 
-            gs_list.extend(cano_models)
+            # `_prepare_smplx_data` stacks [actual_pose, template_row]; posed coords are anim_models,
+            # the last row is a deliberate canonical-style template (cano_models).
+            if return_posed_gaussians and anim_models:
+                gs_list.extend(anim_models)
+            else:
+                gs_list.extend(cano_models)
 
         return gs_list
 

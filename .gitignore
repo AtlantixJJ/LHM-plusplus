@@ -56,6 +56,7 @@ Thumbs.db
 
 # User Setting
 debug/
+evaluation/
 debug/app_test/
 example_data/
 exps/
@@ -64,8 +65,8 @@ gfpgan/
 thirdparty/
 train_data/
 pretrained_models/
-benchmark/
 motion_video/
+outputs/
 
 debug_vis/
 pretrained_models
@@ -81,3 +82,11 @@ lib/pointops/*.egg-info/
 # Ignore additional third-party libs
 lib/diff-gaussian-rasterization/
 lib/simple-knn/
+release_tools/
+
+debug_tools/
+
+# Local evaluation helpers (not part of the public release)
+scripts/inference/dynamic/run_eval_benchmark_suite.py
+scripts/inference/dynamic/run_eval_benchmark_suite.sh
+tools/metrics/build_metrics_table_md.py

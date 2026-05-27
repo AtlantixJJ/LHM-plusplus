@@ -133,12 +133,15 @@ model:
   fix_rotation: false
   cano_pose_type: 1
 dataset:
+  # dataset.subsets[*].root_dirs and meta_path default to null; set local paths before use.
   subsets:
   - name: video_human_lhm_a4o_tar  # lhm dataset
-    root_dirs: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/LHM_video_dataset/
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
     meta_path:
-      train: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/clean_labels/valid_LHM_dataset_train_filter_16W.json
-      val: ./train_data/ClothVideo/label/valid_LHM_dataset_train_val_100.json
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
     sample_rate: 1.0
     random_sample_ratio: 0.95  
     use_flame: true
@@ -155,10 +158,12 @@ dataset:
     ref_img_size:  8 
     womask: true 
   - name: video_human_a4o_tar  # process_data v5 
-    root_dirs: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/selected_dataset_v5_tar/
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
     meta_path:
-      train: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/clean_labels/valid_selected_datasetv5_train_filter40K.json
-      val:  /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/clean_labels/valid_selected_datasetv5_val_filter460-self-rotated-69.json
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
     sample_rate: 1.0
     random_sample_ratio: 0.95  # only random sample.
     use_flame: true
@@ -175,10 +180,12 @@ dataset:
     ref_img_size: 8 
     womask: true
   - name: video_human_a4o_tar  # process_data v6 
-    root_dirs: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/selected_dataset_v6_tar/
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
     meta_path:
-      train: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/clean_labels/valid_selected_datasetv6_train_5W.json
-      val: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/clean_labels/valid_selected_datasetv6_test_100-self-rotated-25.json
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
     sample_rate: 1.0
     random_sample_ratio: 0.95  # only random sample.
     use_flame: true
@@ -195,10 +202,12 @@ dataset:
     ref_img_size: 8 
     womask: true
   - name: video_human_a4o_tar  # synthetic 
-    root_dirs: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/synthetic_data_tar/
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
     meta_path:
-      train: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/clean_labels/valid_LHM_synthetic_dataset_train_3700.json
-      val: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/clean_labels/valid_LHM_synthetic_dataset_val_60.json
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
     sample_rate: 1.0
     random_sample_ratio: 0.95  # only random sample.
     use_flame: true
@@ -215,11 +224,12 @@ dataset:
     ref_img_size: 8 
     womask: true
   - name: dna_a4o_tar # dna rendering dataset
-    root_dirs: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/DNA-Rendering/ 
+    # User: root directory for this subset (e.g. unpacked archives / data root).
+    root_dirs: null
     meta_path:
-      # train: ./train_data/ClothVideo/label/valid_LHM_dataset_train_val_100.json
-      train: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/clean_labels/DNA_Rendering_subjcams.json
-      val: /mnt/workspaces/rmbg/papers/heyuan/stablenorml/d6f8c7e1a2b3c4d5e6f7a8b9c0d1e2f3/tmp/video_human_datasets/clean_labels/DNA_Rendering_subjcams_eval.json
+      # User: JSON paths for train / validation meta or label lists.
+      train: null
+      val: null
     sample_rate: 1.0
     random_sample_ratio: 1.0  
     use_flame: true
@@ -300,10 +310,9 @@ val:
   global_step_period: 1000
   debug_batches: 10
 saver:
-  # auto_resume: True 
-  # load_model: null
   auto_resume: False
-  load_model: ./exps/checkpoints/LHM-A4O-SMPLX-Train-806/LHM-A4O-SMPLX-Train-View1-randombg-colors-encoder-decoder-opacity-loss/065000/model.safetensors
+  # User: pretrained checkpoint path (e.g. model.safetensors) when resuming; null if none.
+  load_model: null
   checkpoint_root: ./exps/checkpoints
   checkpoint_global_steps: 1000
   checkpoint_keep_level: 100
